@@ -32,7 +32,7 @@ export class UserController {
     return this.userService.resendOtp(body.email, body.tenantSlug);
   }
 
-  @Post('signup')
+  @Post('register')
   async signupUser(
     @Body()
     userData: {
@@ -55,7 +55,9 @@ export class UserController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  async getMe(@Request() req: { user: { id: string; email: string } }) {
+  async getMe(
+    @Request() req: { user: { id: string; email: string; tenantId: string } },
+  ) {
     return this.userService.getMe(req.user.id);
   }
 }

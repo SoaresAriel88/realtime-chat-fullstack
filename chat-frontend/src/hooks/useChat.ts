@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { currentUser } from '../lib/currentUser';
+import { getCurrentUser } from '../lib/currentUser';
 import {
   createConversation,
   getConversationMessages,
   getConversations,
 } from '../services/chatApi';
-import { socket } from '../services/socket';
-import type { Conversation, Message, SocketAckResponse } from '../types/chat';
+import { refreshSocketAuth, socket } from '../services/socket';
+import type {
+  Conversation,
+  Message,
+  SocketAckResponse,
+  User,
+} from '../types/chat';
 
 type IncomingSocketMessage = {
   id?: string;
@@ -18,7 +23,15 @@ type IncomingSocketMessage = {
   createdAt?: string | Date;
 };
 
-function normalizeIncomingMessage(raw: IncomingSocketMessage): Message {
+type OnlineUsersPayload = {
+  room: string;
+  users: User[];
+};
+
+function normalizeIncomingMessage(
+  raw: IncomingSocketMessage,
+  currentUser: User | null,
+): Message {
   let createdAt: string;
 
   if (raw.createdAt instanceof Date) {
@@ -37,7 +50,10 @@ function normalizeIncomingMessage(raw: IncomingSocketMessage): Message {
         }
       : raw.author ?? {
           id: raw.authorId,
-          name: raw.authorId === currentUser.id ? currentUser.name : 'Usuário',
+          name:
+            currentUser && raw.authorId === currentUser.id
+              ? currentUser.name
+              : 'Usuário',
         };
 
   return {
@@ -51,10 +67,13 @@ function normalizeIncomingMessage(raw: IncomingSocketMessage): Message {
 }
 
 export function useChat() {
+  const currentUser = useMemo(() => getCurrentUser(), []);
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] =
     useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isUsingMockData, setIsUsingMockData] = useState(false);
@@ -64,10 +83,15 @@ export function useChat() {
   const previousRoomRef = useRef<string | null>(null);
 
   const activeParticipants = useMemo(() => {
-    return activeConversation?.participants ?? [currentUser];
-  }, [activeConversation]);
+    if (onlineUsers.length > 0) {
+      return onlineUsers;
+    }
+
+    return activeConversation?.participants ?? (currentUser ? [currentUser] : []);
+  }, [activeConversation, currentUser, onlineUsers]);
 
   useEffect(() => {
+    refreshSocketAuth();
     socket.connect();
 
     function handleConnect() {
@@ -76,10 +100,11 @@ export function useChat() {
 
     function handleDisconnect() {
       setIsConnected(false);
+      setOnlineUsers([]);
     }
 
     function handleNewMessage(rawMessage: IncomingSocketMessage) {
-      const newMessage = normalizeIncomingMessage(rawMessage);
+      const newMessage = normalizeIncomingMessage(rawMessage, currentUser);
 
       const activeConversationId = activeConversationIdRef.current;
 
@@ -102,7 +127,20 @@ export function useChat() {
       });
     }
 
-    function handleTypingStart(payload: { author?: string; authorName?: string }) {
+    function handleOnlineUsers(payload: OnlineUsersPayload) {
+      const activeConversationId = activeConversationIdRef.current;
+
+      if (activeConversationId && payload.room !== activeConversationId) {
+        return;
+      }
+
+      setOnlineUsers(payload.users);
+    }
+
+    function handleTypingStart(payload: {
+      author?: string;
+      authorName?: string;
+    }) {
       setTypingUser(payload.authorName ?? payload.author ?? 'Alguém');
     }
 
@@ -113,6 +151,7 @@ export function useChat() {
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('chat:new_message', handleNewMessage);
+    socket.on('chat:online_users', handleOnlineUsers);
     socket.on('chat:user_typing', handleTypingStart);
     socket.on('chat:user_stop_typing', handleTypingStop);
 
@@ -122,12 +161,13 @@ export function useChat() {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('chat:new_message', handleNewMessage);
+      socket.off('chat:online_users', handleOnlineUsers);
       socket.off('chat:user_typing', handleTypingStart);
       socket.off('chat:user_stop_typing', handleTypingStop);
 
       socket.disconnect();
     };
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
     async function loadConversations() {
@@ -143,6 +183,7 @@ export function useChat() {
         setConversations([]);
         setActiveConversation(null);
         setMessages([]);
+        setOnlineUsers([]);
         setIsUsingMockData(false);
       }
     }
@@ -154,6 +195,7 @@ export function useChat() {
     if (!activeConversation) {
       activeConversationIdRef.current = null;
       setMessages([]);
+      setOnlineUsers([]);
       return;
     }
 
@@ -167,6 +209,7 @@ export function useChat() {
       activeConversationIdRef.current = roomId;
       setIsLoadingMessages(true);
       setTypingUser(null);
+      setOnlineUsers([]);
 
       const previousRoom = previousRoomRef.current;
 
@@ -196,7 +239,12 @@ export function useChat() {
 
         if (isCancelled) return;
 
-        setMessages(apiMessages.map(normalizeIncomingMessage));
+        setMessages(
+          apiMessages.map((message) =>
+            normalizeIncomingMessage(message, currentUser),
+          ),
+        );
+
         setIsUsingMockData(false);
       } catch (error) {
         console.error('Erro ao carregar mensagens:', error);
@@ -217,7 +265,7 @@ export function useChat() {
     return () => {
       isCancelled = true;
     };
-  }, [activeConversation]);
+  }, [activeConversation, currentUser]);
 
   const selectConversation = useCallback((conversation: Conversation) => {
     setActiveConversation(conversation);
@@ -226,6 +274,7 @@ export function useChat() {
   const sendMessage = useCallback(
     (content: string) => {
       if (!activeConversation) return;
+      if (!currentUser) return;
 
       const trimmedContent = content.trim();
 
@@ -235,7 +284,6 @@ export function useChat() {
         'chat:send_message',
         {
           room: activeConversation.id,
-          authorId: currentUser.id,
           content: trimmedContent,
         },
         (ack?: SocketAckResponse) => {
@@ -245,7 +293,7 @@ export function useChat() {
         },
       );
     },
-    [activeConversation],
+    [activeConversation, currentUser],
   );
 
   const createNewConversation = useCallback(async (name: string) => {
@@ -268,6 +316,7 @@ export function useChat() {
 
       setActiveConversation(conversation);
       setMessages([]);
+      setOnlineUsers([]);
       setIsUsingMockData(false);
     } catch (error) {
       console.error('Erro ao criar conversation:', error);
@@ -276,26 +325,29 @@ export function useChat() {
 
   const startTyping = useCallback(() => {
     if (!activeConversation) return;
+    if (!currentUser) return;
 
     socket.emit('chat:typing_start', {
       room: activeConversation.id,
       author: currentUser.name,
     });
-  }, [activeConversation]);
+  }, [activeConversation, currentUser]);
 
   const stopTyping = useCallback(() => {
     if (!activeConversation) return;
+    if (!currentUser) return;
 
     socket.emit('chat:typing_stop', {
       room: activeConversation.id,
       author: currentUser.name,
     });
-  }, [activeConversation]);
+  }, [activeConversation, currentUser]);
 
   return {
     conversations,
     activeConversation,
     activeParticipants,
+    onlineUsers,
     messages,
     isConnected,
     isLoadingMessages,

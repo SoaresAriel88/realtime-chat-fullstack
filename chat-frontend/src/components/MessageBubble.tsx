@@ -1,4 +1,4 @@
-import { currentUser } from '../lib/currentUser';
+import { getCurrentUser } from '../lib/currentUser';
 import type { Message } from '../types/chat';
 import { Avatar } from './Avatar';
 
@@ -14,12 +14,20 @@ function formatTime(date: string) {
 }
 
 export function MessageBubble({ message }: MessageBubbleProps) {
-  const isOwnMessage = message.authorId === currentUser.id;
-  const authorName = message.author?.name ?? (isOwnMessage ? currentUser.name : 'Usuário');
+  const currentUser = getCurrentUser();
+
+  const isOwnMessage = currentUser
+    ? message.authorId === currentUser.id
+    : false;
+
+  const authorName =
+    message.author?.name ?? (isOwnMessage ? currentUser?.name : 'Usuário');
 
   return (
     <div className={`message-row ${isOwnMessage ? 'own' : ''}`}>
-      {!isOwnMessage && <Avatar name={authorName} status={message.author?.status} />}
+      {!isOwnMessage && (
+        <Avatar name={authorName ?? ''} status={message.author?.status} />
+      )}
 
       <div className={`message-bubble ${isOwnMessage ? 'own' : ''}`}>
         {!isOwnMessage && <strong>{authorName}</strong>}

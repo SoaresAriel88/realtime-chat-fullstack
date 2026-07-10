@@ -4,7 +4,6 @@ import { BullModule } from '@nestjs/bullmq';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { DatabaseModule } from './database/database.module';
-import { CategoryModule } from './category/category.module';
 import { RoleModule } from './role/role.module';
 import { PermissionModule } from './permission/permission.module';
 import { MailModule } from './mail/mail.module';
@@ -36,7 +35,6 @@ import { ChatModule } from './chat/chat.module';
     AuthModule,
     UserModule,
     DatabaseModule,
-    CategoryModule,
     RoleModule,
     PermissionModule,
     MailModule,
