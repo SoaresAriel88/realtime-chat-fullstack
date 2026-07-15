@@ -149,6 +149,23 @@
 							}}
 						/>
 					</label>
+					<div
+						style={{
+							display: 'flex',
+							justifyContent: 'flex-end',
+						}}
+						>
+						<Link
+							to="/forgot-password"
+							style={{
+							color: '#60a5fa',
+							fontSize: '14px',
+							textDecoration: 'none',
+							}}
+						>
+							Esqueci minha senha
+						</Link>
+					</div>
 
 					{errorMessage && (
 						<span style={{ color: '#f87171', fontSize: '14px' }}>

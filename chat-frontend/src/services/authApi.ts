@@ -14,6 +14,33 @@ type RegisterRequest = {
   password: string;
   tenantSlug: string;
 };
+type VerifyEmailOtpRequest = {
+  email: string;
+  otpCode: string;
+  tenantSlug: string;
+};
+
+type ResendEmailOtpRequest = {
+  email: string;
+  tenantSlug: string;
+};
+type ForgotPasswordRequest = {
+  email: string;
+  tenantSlug: string;
+};
+type VerifyResetPasswordOtpRequest = {
+  email: string;
+  resetPasswordOtp: string;
+  tenantSlug: string;
+};
+
+type VerifyResetPasswordOtpResponse = {
+  token: string;
+};
+type ResetPasswordRequest = {
+  newPassword: string;
+  token: string;
+};
 
 type AuthResponse = {
   accessToken?: string;
@@ -79,7 +106,48 @@ export async function register(data: RegisterRequest) {
 
   return response.data;
 }
+export async function verifyEmailOtp(data: VerifyEmailOtpRequest) {
+  const response = await api.post('/users/verify-otp', data);
 
+  return response.data;
+}
+
+export async function resendEmailOtp(data: ResendEmailOtpRequest) {
+  const response = await api.post('/users/resend-otp', data);
+
+  return response.data;
+}
+export async function forgotPassword(data: ForgotPasswordRequest) {
+  const response = await api.post('/auth/forgot-password', data);
+
+  return response.data;
+}
+export async function verifyResetPasswordOtp(
+  data: VerifyResetPasswordOtpRequest,
+) {
+  const response = await api.post<VerifyResetPasswordOtpResponse>(
+    '/auth/verify-reset-password-otp',
+    data,
+  );
+
+
+  return response.data;
+}
+export async function resetPassword(data: ResetPasswordRequest) {
+  const response = await api.post(
+    '/auth/reset-password',
+    {
+      newPassword: data.newPassword,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${data.token}`,
+      },
+    },
+  );
+
+  return response.data;
+}
 export function logout() {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('user');
