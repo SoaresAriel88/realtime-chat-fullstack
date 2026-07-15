@@ -19,11 +19,13 @@ type SocketAckResponse = {
   room?: {
     id: string;
     name: string;
+    tenantId: string;
   };
 };
 
 type SocketTypingStart = {
   room: string;
+  tenantId: string;
   author: string;
 };
 
@@ -43,6 +45,7 @@ type AuthenticatedSocketUser = {
 type OnlineUser = {
   id: string;
   name: string;
+  tenantId: string;
   status: 'online';
 };
 
@@ -90,9 +93,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const user = await this.prisma.user.findUnique({
         where: {
           id: payload.sub,
+          tenantId: payload.tenantId,
         },
         select: {
           id: true,
+          tenantId: true,
           name: true,
         },
       });
@@ -136,6 +141,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'Usuário não autenticado',
       };
     }
+    const tenantId = currentUser.tenantId;
+    if (!tenantId) {
+      return {
+        success: false,
+        message: 'Tenant não encontrado',
+      };
+    }
 
     const roomName = data.name?.trim();
 
@@ -148,6 +160,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     const room = await this.chatService.roomCreate({
       name: roomName,
+      tenantId,
     });
 
     const roomId: string = room.id;
@@ -157,6 +170,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.addOnlineUserToRoom(roomId, client);
     this.emitOnlineUsers(roomId);
 
+    console.log(`Acesso a tenant com sucesso: ${tenantId}`);
     console.log(`Sala criada com sucesso: ${room.name}`);
     console.log(`Cliente ${client.id} entrou na sala ID: ${room.id}`);
 
@@ -166,6 +180,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       room: {
         id: room.id,
         name: room.name,
+        tenantId: room.tenantId,
       },
     };
   }
@@ -183,6 +198,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'Usuário não autenticado',
       };
     }
+    const tenantId = currentUser.tenantId;
+    if (!tenantId) {
+      return {
+        success: false,
+        message: 'Tenant não encontrado',
+      };
+    }
+    console.log('JOIN BACKEND DEBUG:', {
+      data,
+      room: data.room,
+      name: data.name,
+      tenantId,
+      currentUser,
+    });
 
     const roomIdentifier = data.room?.trim() || data.name?.trim();
 
@@ -193,7 +222,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
     }
 
-    const room = await this.chatService.findRoomByIdOrName(roomIdentifier);
+    const room = await this.chatService.findRoomByIdOrName(
+      roomIdentifier,
+      tenantId,
+    );
 
     if (!room) {
       return {
@@ -203,12 +235,25 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     await client.join(room.id);
+    const socketsInRoom = await this.server.in(room.id).fetchSockets();
+
+    console.log('SOCKETS NA ROOM DEPOIS DO JOIN:', {
+      roomId: room.id,
+      total: socketsInRoom.length,
+      users: socketsInRoom.map((socket) => socket.data.user),
+    });
 
     this.addOnlineUserToRoom(room.id, client);
     this.emitOnlineUsers(room.id);
 
+    console.log(`Acesso a tenant com sucesso: ${tenantId}`);
     console.log(`Cliente ${client.id} entrou na sala ${room.name}`);
     console.log(`Room ID usada no socket: ${room.id}`);
+    console.log('JOIN ROOM DEBUG:', {
+      roomIdentifier,
+      tenantId,
+      user: currentUser,
+    });
 
     return {
       success: true,
@@ -216,6 +261,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       room: {
         id: room.id,
         name: room.name,
+        tenantId: room.tenantId,
       },
     };
   }
@@ -225,8 +271,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { room?: string; name?: string },
     @ConnectedSocket() client: Socket,
   ): Promise<SocketAckResponse> {
-    const roomIdentifier = data.room?.trim() || data.name?.trim();
+    const currentUser = this.getAuthenticatedUser(client);
 
+    if (!currentUser) {
+      return {
+        success: false,
+        message: 'Usuário não autenticado',
+      };
+    }
+    const tenantId = currentUser.tenantId;
+    if (!tenantId) {
+      return {
+        success: false,
+        message: 'Tenant não encontrado',
+      };
+    }
+    const roomIdentifier = data.room?.trim() || data.name?.trim();
     if (!roomIdentifier) {
       return {
         success: false,
@@ -234,7 +294,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       };
     }
 
-    const room = await this.chatService.findRoomByIdOrName(roomIdentifier);
+    const room = await this.chatService.findRoomByIdOrName(
+      roomIdentifier,
+      tenantId,
+    );
 
     if (!room) {
       return {
@@ -242,8 +305,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'Sala não encontrada',
       };
     }
+    console.log('LEAVE ROOM DEBUG:', {
+      roomRecebida: data.room,
+      tenantId,
+      currentUser,
+    });
 
     await client.leave(room.id);
+
+    const socketsInRoom = await this.server.in(room.id).fetchSockets();
+
+    console.log('SOCKETS NA ROOM DEPOIS DO LEAVE:', {
+      roomId: room.id,
+      total: socketsInRoom.length,
+      users: socketsInRoom.map((socket) => socket.data.user),
+    });
 
     this.removeOnlineUserFromRoom(room.id, client);
     this.emitOnlineUsers(room.id);
@@ -257,6 +333,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       room: {
         id: room.id,
         name: room.name,
+        tenantId: room.tenantId,
       },
     };
   }
@@ -272,6 +349,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return {
         success: false,
         message: 'Usuário não autenticado',
+      };
+    }
+    const tenantId = currentUser.tenantId;
+    if (!tenantId) {
+      return {
+        success: false,
+        message: 'Tenant não encontrado',
       };
     }
 
@@ -295,14 +379,29 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       const savedMessage = await this.chatService.saveMessageByConversation({
         conversationId: room,
+        tenantId: tenantId,
         authorId: currentUser.id,
         content,
       });
 
       const roomId: string = savedMessage.conversationId;
 
+      if (!client.rooms.has(roomId)) {
+        console.warn(
+          'Socket não estava na room no send_message. Entrando agora:',
+          {
+            socketId: client.id,
+            roomId,
+            roomsAtuais: Array.from(client.rooms),
+          },
+        );
+
+        await client.join(roomId);
+      }
+
       const payload = {
         id: savedMessage.id,
+        tenantId: savedMessage.tenantId,
         room: roomId,
         conversationId: roomId,
         authorId: savedMessage.authorId,
@@ -317,6 +416,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       console.log('Mensagem salva no banco:', savedMessage.id);
       console.log('Emitindo para room:', roomId);
+
+      const socketsInRoom = await this.server.in(roomId).fetchSockets();
+
+      console.log('SOCKETS NA ROOM ANTES DO EMIT:', {
+        roomId,
+        total: socketsInRoom.length,
+        users: socketsInRoom.map((socket) => socket.data.user),
+      });
 
       this.server.to(roomId).emit('chat:new_message', payload);
 
@@ -335,12 +442,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('chat:typing_start')
-  handleTypingStart(
+  async handleTypingStart(
     @MessageBody() data: SocketTypingStart,
     @ConnectedSocket() client: Socket,
-  ): SocketAckResponse {
+  ): Promise<SocketAckResponse> {
     const currentUser = this.getAuthenticatedUser(client);
-    const room = data.room?.trim();
 
     if (!currentUser) {
       return {
@@ -348,20 +454,36 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'Usuário não autenticado',
       };
     }
-
+    const tenantId = currentUser.tenantId;
+    if (!tenantId) {
+      return {
+        success: false,
+        message: 'Tenant não encontrado',
+      };
+    }
+    const room = data.room?.trim();
     if (!room) {
       return {
         success: false,
         message: 'Sala não informada',
       };
     }
+    const roomFound = await this.chatService.findRoomByIdOrName(room, tenantId);
+
+    if (!roomFound) {
+      return {
+        success: false,
+        message: 'Sala não encontrada',
+      };
+    }
 
     const payload: SocketTypingStart = {
-      room,
+      room: roomFound.id,
+      tenantId: currentUser.tenantId,
       author: currentUser.name,
     };
 
-    client.to(payload.room).emit('chat:user_typing', payload);
+    client.to(roomFound.id).emit('chat:user_typing', payload);
 
     return {
       success: true,
@@ -370,12 +492,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('chat:typing_stop')
-  handleTypingStop(
+  async handleTypingStop(
     @MessageBody() data: SocketTypingStart,
     @ConnectedSocket() client: Socket,
-  ): SocketAckResponse {
+  ): Promise<SocketAckResponse> {
     const currentUser = this.getAuthenticatedUser(client);
-    const room = data.room?.trim();
 
     if (!currentUser) {
       return {
@@ -383,20 +504,37 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'Usuário não autenticado',
       };
     }
+    const tenantId = currentUser.tenantId;
 
+    if (!tenantId) {
+      return {
+        success: false,
+        message: 'Tenant não encontrado',
+      };
+    }
+    const room = data.room?.trim();
     if (!room) {
       return {
         success: false,
         message: 'Sala não informada',
       };
     }
+    const roomFound = await this.chatService.findRoomByIdOrName(room, tenantId);
+
+    if (!roomFound) {
+      return {
+        success: false,
+        message: 'Sala não encontrada',
+      };
+    }
 
     const payload: SocketTypingStart = {
-      room,
+      room: roomFound.id,
+      tenantId: currentUser.tenantId,
       author: currentUser.name,
     };
 
-    client.to(payload.room).emit('chat:user_stop_typing', payload);
+    client.to(roomFound.id).emit('chat:user_stop_typing', payload);
 
     return {
       success: true,
@@ -438,7 +576,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = this.getAuthenticatedUser(client);
 
     if (!user) return;
-
     let usersInRoom = this.onlineUsersByRoom.get(roomId);
 
     if (!usersInRoom) {
@@ -452,6 +589,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       onlineUser = {
         id: user.id,
         name: user.name,
+        tenantId: user.tenantId,
         status: 'online',
         socketIds: new Set<string>(),
       };
@@ -521,12 +659,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private emitOnlineUsers(roomId: string) {
+    console.log('ENTROU NO EMIT ONLINE USERS:', roomId);
+
     const usersInRoom = this.onlineUsersByRoom.get(roomId);
 
     const users: OnlineUser[] = usersInRoom
       ? Array.from(usersInRoom.values()).map((user) => ({
           id: user.id,
           name: user.name,
+          tenantId: user.tenantId,
           status: user.status,
         }))
       : [];

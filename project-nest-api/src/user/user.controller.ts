@@ -58,6 +58,6 @@ export class UserController {
   async getMe(
     @Request() req: { user: { id: string; email: string; tenantId: string } },
   ) {
-    return this.userService.getMe(req.user.id);
+    return this.userService.getMe(req.user.id, req.user.tenantId);
   }
 }

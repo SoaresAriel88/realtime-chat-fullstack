@@ -20,6 +20,7 @@ export function saveCurrentUser(user: User) {
     'user',
     JSON.stringify({
       id: user.id,
+      tenantId: user.tenantId,
       name: user.name,
       status: 'online',
     }),

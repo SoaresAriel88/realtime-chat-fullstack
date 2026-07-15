@@ -15,6 +15,7 @@ import type {
 
 type IncomingSocketMessage = {
   id?: string;
+  tenantId: string;
   room?: string;
   conversationId?: string;
   authorId: string;
@@ -58,6 +59,7 @@ function normalizeIncomingMessage(
 
   return {
     id: raw.id ?? crypto.randomUUID(),
+    tenantId: raw.tenantId,
     conversationId: raw.conversationId ?? raw.room ?? '',
     authorId: raw.authorId,
     author,
@@ -78,17 +80,12 @@ export function useChat() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isUsingMockData, setIsUsingMockData] = useState(false);
   const [typingUser, setTypingUser] = useState<string | null>(null);
+  const [joinedRoomId, setJoinedRoomId] = useState<string | null>(null);
 
   const activeConversationIdRef = useRef<string | null>(null);
   const previousRoomRef = useRef<string | null>(null);
 
-  const activeParticipants = useMemo(() => {
-    if (onlineUsers.length > 0) {
-      return onlineUsers;
-    }
-
-    return activeConversation?.participants ?? (currentUser ? [currentUser] : []);
-  }, [activeConversation, currentUser, onlineUsers]);
+  const activeParticipants = onlineUsers;
 
   useEffect(() => {
     refreshSocketAuth();
@@ -101,9 +98,12 @@ export function useChat() {
     function handleDisconnect() {
       setIsConnected(false);
       setOnlineUsers([]);
+      setJoinedRoomId(null);
     }
 
     function handleNewMessage(rawMessage: IncomingSocketMessage) {
+      console.log('RECEBI chat:new_message:', rawMessage);
+
       const newMessage = normalizeIncomingMessage(rawMessage, currentUser);
 
       const activeConversationId = activeConversationIdRef.current;
@@ -129,7 +129,7 @@ export function useChat() {
 
     function handleOnlineUsers(payload: OnlineUsersPayload) {
       const activeConversationId = activeConversationIdRef.current;
-
+      console.log('USUÁRIOS ONLINE RECEBIDOS:', payload);
       if (activeConversationId && payload.room !== activeConversationId) {
         return;
       }
@@ -140,11 +140,28 @@ export function useChat() {
     function handleTypingStart(payload: {
       author?: string;
       authorName?: string;
+      room: string;
     }) {
+      const activeConversationId = activeConversationIdRef.current;
+
+      if (activeConversationId && payload.room !== activeConversationId) {
+        return;
+      }
+
       setTypingUser(payload.authorName ?? payload.author ?? 'Alguém');
     }
 
-    function handleTypingStop() {
+    function handleTypingStop(payload: {
+      author?: string;
+      authorName?: string;
+      room: string;
+    }) {
+      const activeConversationId = activeConversationIdRef.current;
+
+      if (activeConversationId && payload.room !== activeConversationId) {
+        return;
+      }
+
       setTypingUser(null);
     }
 
@@ -184,6 +201,7 @@ export function useChat() {
         setActiveConversation(null);
         setMessages([]);
         setOnlineUsers([]);
+        setJoinedRoomId(null);
         setIsUsingMockData(false);
       }
     }
@@ -196,6 +214,12 @@ export function useChat() {
       activeConversationIdRef.current = null;
       setMessages([]);
       setOnlineUsers([]);
+      setTypingUser(null);
+      setJoinedRoomId(null);
+      return;
+    }
+
+    if (!isConnected) {
       return;
     }
 
@@ -207,6 +231,7 @@ export function useChat() {
       const roomId = activeConversation.id;
 
       activeConversationIdRef.current = roomId;
+      setJoinedRoomId(null);
       setIsLoadingMessages(true);
       setTypingUser(null);
       setOnlineUsers([]);
@@ -225,9 +250,25 @@ export function useChat() {
         'chat:join_room',
         {
           room: roomId,
-          name: activeConversation.name,
         },
         (ack?: SocketAckResponse) => {
+          console.log('Tentando entrar na sala:', {
+            roomId,
+            conversationTenantId: activeConversation.tenantId,
+            currentUserTenantId: currentUser?.tenantId,
+          });
+
+          console.log('ACK join_room', ack);
+
+          if (isCancelled) return;
+
+          if (ack?.success) {
+            setJoinedRoomId(roomId);
+            return;
+          }
+
+          setJoinedRoomId(null);
+
           if (ack && !ack.success) {
             console.warn(ack.message);
           }
@@ -265,7 +306,7 @@ export function useChat() {
     return () => {
       isCancelled = true;
     };
-  }, [activeConversation, currentUser]);
+  }, [activeConversation, currentUser, isConnected]);
 
   const selectConversation = useCallback((conversation: Conversation) => {
     setActiveConversation(conversation);
@@ -276,9 +317,27 @@ export function useChat() {
       if (!activeConversation) return;
       if (!currentUser) return;
 
+      if (joinedRoomId !== activeConversation.id) {
+        console.warn('Ainda não entrou na sala atual:', {
+          joinedRoomId,
+          activeConversationId: activeConversation.id,
+          activeConversationName: activeConversation.name,
+          socketConnected: socket.connected,
+        });
+
+        return;
+      }
+
       const trimmedContent = content.trim();
 
       if (!trimmedContent) return;
+
+      console.log('FRONT SEND MESSAGE:', {
+        activeConversationId: activeConversation.id,
+        activeConversationName: activeConversation.name,
+        joinedRoomId,
+        socketConnected: socket.connected,
+      });
 
       socket.emit(
         'chat:send_message',
@@ -287,13 +346,15 @@ export function useChat() {
           content: trimmedContent,
         },
         (ack?: SocketAckResponse) => {
+          console.log('ACK send_message:', ack);
+
           if (ack && !ack.success) {
             console.warn(ack.message);
           }
         },
       );
     },
-    [activeConversation, currentUser],
+    [activeConversation, currentUser, joinedRoomId],
   );
 
   const createNewConversation = useCallback(async (name: string) => {
@@ -317,6 +378,8 @@ export function useChat() {
       setActiveConversation(conversation);
       setMessages([]);
       setOnlineUsers([]);
+      setTypingUser(null);
+      setJoinedRoomId(null);
       setIsUsingMockData(false);
     } catch (error) {
       console.error('Erro ao criar conversation:', error);
@@ -326,22 +389,22 @@ export function useChat() {
   const startTyping = useCallback(() => {
     if (!activeConversation) return;
     if (!currentUser) return;
+    if (joinedRoomId !== activeConversation.id) return;
 
     socket.emit('chat:typing_start', {
       room: activeConversation.id,
-      author: currentUser.name,
     });
-  }, [activeConversation, currentUser]);
+  }, [activeConversation, currentUser, joinedRoomId]);
 
   const stopTyping = useCallback(() => {
     if (!activeConversation) return;
     if (!currentUser) return;
+    if (joinedRoomId !== activeConversation.id) return;
 
     socket.emit('chat:typing_stop', {
       room: activeConversation.id,
-      author: currentUser.name,
     });
-  }, [activeConversation, currentUser]);
+  }, [activeConversation, currentUser, joinedRoomId]);
 
   return {
     conversations,
