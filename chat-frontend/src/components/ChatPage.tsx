@@ -17,6 +17,7 @@ export function ChatPage() {
     typingUser,
     selectConversation,
     sendMessage,
+    sendAttachment,
     createNewConversation,
     startTyping,
     stopTyping,
@@ -39,6 +40,7 @@ export function ChatPage() {
         <MessageInput
           disabled={!activeConversation}
           onSendMessage={sendMessage}
+          onSelectAttachment={sendAttachment}
           onTypingStart={startTyping}
           onTypingStop={stopTyping}
         />

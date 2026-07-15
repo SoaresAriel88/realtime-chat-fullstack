@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Conversation } from '@prisma/client';
 import { PrismaService } from 'src/database/prisma.service';
+import { MessageType } from '@prisma/client';
 
 @Injectable()
 export class ChatService {
@@ -76,12 +77,27 @@ export class ChatService {
     conversationId: string;
     tenantId: string;
     authorId: string;
-    content: string;
+
+    type?: MessageType;
+    content?: string;
+
+    fileUrl?: string;
+    fileName?: string;
+    mimeType?: string;
+    fileSize?: number;
+
+    audioDuration?: number;
   }) {
     const conversationId = data.conversationId?.trim();
     const tenantId = data.tenantId?.trim();
     const authorId = data.authorId?.trim();
-    const content = data.content?.trim();
+
+    const type = data.type ?? MessageType.TEXT;
+    const content = data.content?.trim() || null;
+
+    const fileUrl = data.fileUrl?.trim() || null;
+    const fileName = data.fileName?.trim() || null;
+    const mimeType = data.mimeType?.trim() || null;
 
     if (!tenantId) {
       throw new Error('ID da empresa é obrigatório');
@@ -95,13 +111,17 @@ export class ChatService {
       throw new Error('ID do autor é obrigatório');
     }
 
-    if (!content) {
-      throw new Error('Mensagem vazia');
+    if (type === MessageType.TEXT && !content) {
+      throw new Error('Mensagem de texto vazia');
+    }
+
+    if (type !== MessageType.TEXT && !fileUrl) {
+      throw new Error('Arquivo da mensagem não informado');
     }
 
     const conversation = await this.prisma.conversation.findFirst({
       where: {
-        tenantId: tenantId,
+        tenantId,
         id: conversationId,
       },
     });
@@ -112,7 +132,15 @@ export class ChatService {
 
     return await this.prisma.message.create({
       data: {
+        type,
         content,
+
+        fileUrl,
+        fileName,
+        mimeType,
+        fileSize: data.fileSize ?? null,
+        audioDuration: data.audioDuration ?? null,
+
         tenantId,
         conversationId,
         authorId,

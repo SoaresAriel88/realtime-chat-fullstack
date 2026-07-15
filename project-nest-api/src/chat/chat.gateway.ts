@@ -677,4 +677,53 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       users,
     });
   }
+  emitNewMessage(
+    roomId: string,
+    message: {
+      id: string;
+      tenantId: string;
+      conversationId: string;
+      authorId: string;
+      author: {
+        id: string;
+        name: string;
+      };
+      type: string;
+      content: string | null;
+      fileUrl: string | null;
+      fileName: string | null;
+      mimeType: string | null;
+      fileSize: number | null;
+      audioDuration: number | null;
+      createdAt: Date;
+    },
+  ) {
+    const payload = {
+      id: message.id,
+      tenantId: message.tenantId,
+
+      room: roomId,
+      conversationId: message.conversationId,
+
+      authorId: message.authorId,
+      author: {
+        id: message.author.id,
+        name: message.author.name,
+        status: 'online',
+      },
+
+      type: message.type,
+      content: message.content,
+
+      fileUrl: message.fileUrl,
+      fileName: message.fileName,
+      mimeType: message.mimeType,
+      fileSize: message.fileSize,
+      audioDuration: message.audioDuration,
+
+      createdAt: message.createdAt,
+    };
+
+    this.server.to(roomId).emit('chat:new_message', payload);
+  }
 }

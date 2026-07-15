@@ -4,6 +4,7 @@ import {
   createConversation,
   getConversationMessages,
   getConversations,
+  uploadAttachment as uploadAttachmentRequest,
 } from '../services/chatApi';
 import { refreshSocketAuth, socket } from '../services/socket';
 import type {
@@ -20,7 +21,16 @@ type IncomingSocketMessage = {
   conversationId?: string;
   authorId: string;
   author?: Message['author'] | string;
-  content: string;
+
+  type?: Message['type'];
+  content?: string | null;
+
+  fileUrl?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  fileSize?: number | null;
+  audioDuration?: number | null;
+
   createdAt?: string | Date;
 };
 
@@ -57,15 +67,24 @@ function normalizeIncomingMessage(
               : 'Usuário',
         };
 
-  return {
-    id: raw.id ?? crypto.randomUUID(),
-    tenantId: raw.tenantId,
-    conversationId: raw.conversationId ?? raw.room ?? '',
-    authorId: raw.authorId,
-    author,
-    content: raw.content,
-    createdAt,
-  };
+        return {
+          id: raw.id ?? crypto.randomUUID(),
+          tenantId: raw.tenantId,
+          conversationId: raw.conversationId ?? raw.room ?? '',
+          authorId: raw.authorId,
+          author,
+        
+          type: raw.type ?? 'TEXT',
+          content: raw.content ?? null,
+        
+          fileUrl: raw.fileUrl ?? null,
+          fileName: raw.fileName ?? null,
+          mimeType: raw.mimeType ?? null,
+          fileSize: raw.fileSize ?? null,
+          audioDuration: raw.audioDuration ?? null,
+        
+          createdAt,
+    };
 }
 
 export function useChat() {
@@ -277,6 +296,7 @@ export function useChat() {
 
       try {
         const apiMessages = await getConversationMessages(roomId);
+        console.log('MENSAGENS CARREGADAS DO HISTÓRICO:', apiMessages);
 
         if (isCancelled) return;
 
@@ -309,7 +329,7 @@ export function useChat() {
   }, [activeConversation, currentUser, isConnected]);
 
   const selectConversation = useCallback((conversation: Conversation) => {
-    setActiveConversation(conversation);
+    setActiveConversation(conversation);  
   }, []);
 
   const sendMessage = useCallback(
@@ -355,6 +375,31 @@ export function useChat() {
       );
     },
     [activeConversation, currentUser, joinedRoomId],
+  );
+  
+  const sendAttachment = useCallback(
+    async (file: File) => {
+      if (!activeConversation) return;
+  
+      if (joinedRoomId !== activeConversation.id) {
+        console.warn('Ainda não entrou na sala atual para enviar o anexo:', {
+          joinedRoomId,
+          activeConversationId: activeConversation.id,
+        });
+  
+        return;
+      }
+  
+      try {
+        await uploadAttachmentRequest(
+          activeConversation.id,
+          file,
+        );
+      } catch (error) {
+        console.error('Erro ao enviar anexo:', error);
+      }
+    },
+    [activeConversation, joinedRoomId],
   );
 
   const createNewConversation = useCallback(async (name: string) => {
@@ -421,5 +466,6 @@ export function useChat() {
     createNewConversation,
     startTyping,
     stopTyping,
+    sendAttachment,
   };
 }
