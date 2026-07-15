@@ -11,6 +11,13 @@ datasource db {
   provider = "postgresql"
 }
 
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  AUDIO
+}
+
 model Tenant {
   id        String    @id @default(uuid())
   name      String
@@ -79,9 +86,9 @@ model ConversationParticipant {
   conversationId String
   tenantId       String
 
-  user User @relation(fields: [userId, tenantId],references: [id, tenantId])
+  user User @relation(fields: [userId, tenantId], references: [id, tenantId])
 
-  conversation Conversation @relation(fields: [conversationId, tenantId],references: [id, tenantId])
+  conversation Conversation @relation(fields: [conversationId, tenantId], references: [id, tenantId])
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -98,14 +105,23 @@ model ConversationParticipant {
 }
 
 model Message {
-  id      String @id @default(uuid())
-  content String
+  id String @id @default(uuid())
+
+  type    MessageType @default(TEXT)
+  content String?
+
+  fileUrl  String?
+  fileName String?
+  mimeType String?
+  fileSize Int?
+
+  audioDuration Int?
 
   conversationId String
   authorId       String
   tenantId       String
 
-  conversation Conversation @relation(fields: [conversationId, tenantId],references: [id, tenantId])
+  conversation Conversation @relation(fields: [conversationId, tenantId], references: [id, tenantId])
 
   author User @relation(fields: [authorId, tenantId], references: [id, tenantId])
 
