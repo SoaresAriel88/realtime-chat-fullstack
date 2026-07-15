@@ -205,6 +205,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'Tenant não encontrado',
       };
     }
+    console.log('JOIN BACKEND DEBUG:', {
+      data,
+      room: data.room,
+      name: data.name,
+      tenantId,
+      currentUser,
+    });
 
     const roomIdentifier = data.room?.trim() || data.name?.trim();
 
@@ -228,6 +235,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     await client.join(room.id);
+    const socketsInRoom = await this.server.in(room.id).fetchSockets();
+
+    console.log('SOCKETS NA ROOM DEPOIS DO JOIN:', {
+      roomId: room.id,
+      total: socketsInRoom.length,
+      users: socketsInRoom.map((socket) => socket.data.user),
+    });
 
     this.addOnlineUserToRoom(room.id, client);
     this.emitOnlineUsers(room.id);
@@ -235,6 +249,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`Acesso a tenant com sucesso: ${tenantId}`);
     console.log(`Cliente ${client.id} entrou na sala ${room.name}`);
     console.log(`Room ID usada no socket: ${room.id}`);
+    console.log('JOIN ROOM DEBUG:', {
+      roomIdentifier,
+      tenantId,
+      user: currentUser,
+    });
 
     return {
       success: true,
@@ -286,8 +305,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'Sala não encontrada',
       };
     }
+    console.log('LEAVE ROOM DEBUG:', {
+      roomRecebida: data.room,
+      tenantId,
+      currentUser,
+    });
 
     await client.leave(room.id);
+
+    const socketsInRoom = await this.server.in(room.id).fetchSockets();
+
+    console.log('SOCKETS NA ROOM DEPOIS DO LEAVE:', {
+      roomId: room.id,
+      total: socketsInRoom.length,
+      users: socketsInRoom.map((socket) => socket.data.user),
+    });
 
     this.removeOnlineUserFromRoom(room.id, client);
     this.emitOnlineUsers(room.id);
@@ -354,8 +386,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       const roomId: string = savedMessage.conversationId;
 
+      if (!client.rooms.has(roomId)) {
+        console.warn(
+          'Socket não estava na room no send_message. Entrando agora:',
+          {
+            socketId: client.id,
+            roomId,
+            roomsAtuais: Array.from(client.rooms),
+          },
+        );
+
+        await client.join(roomId);
+      }
+
       const payload = {
         id: savedMessage.id,
+        tenantId: savedMessage.tenantId,
         room: roomId,
         conversationId: roomId,
         authorId: savedMessage.authorId,
@@ -370,6 +416,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       console.log('Mensagem salva no banco:', savedMessage.id);
       console.log('Emitindo para room:', roomId);
+
+      const socketsInRoom = await this.server.in(roomId).fetchSockets();
+
+      console.log('SOCKETS NA ROOM ANTES DO EMIT:', {
+        roomId,
+        total: socketsInRoom.length,
+        users: socketsInRoom.map((socket) => socket.data.user),
+      });
 
       this.server.to(roomId).emit('chat:new_message', payload);
 
@@ -522,7 +576,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = this.getAuthenticatedUser(client);
 
     if (!user) return;
-
     let usersInRoom = this.onlineUsersByRoom.get(roomId);
 
     if (!usersInRoom) {
@@ -606,6 +659,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private emitOnlineUsers(roomId: string) {
+    console.log('ENTROU NO EMIT ONLINE USERS:', roomId);
+
     const usersInRoom = this.onlineUsersByRoom.get(roomId);
 
     const users: OnlineUser[] = usersInRoom

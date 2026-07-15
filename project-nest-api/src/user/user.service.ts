@@ -90,11 +90,15 @@ export class UserService {
       },
     });
   }
-  async getMe(id: string): Promise<Partial<User> | null> {
+  async getMe(id: string, tenantId: string): Promise<Partial<User> | null> {
+    if (!tenantId) {
+      throw new BadRequestException('Tenant não encontrado');
+    }
     return this.prisma.user.findUnique({
-      where: { id },
+      where: { id, tenantId },
       select: {
         id: true,
+        tenantId: true,
         name: true,
       },
     });

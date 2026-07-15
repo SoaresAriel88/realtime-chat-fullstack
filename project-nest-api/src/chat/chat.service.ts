@@ -128,9 +128,15 @@ export class ChatService {
     });
   }
   async findRoomByIdOrName(identifier: string, tenantId: string) {
+    console.log('FIND ROOM DEBUG:', {
+      identifier,
+      tenantId,
+    });
+
     return await this.prisma.conversation.findFirst({
       where: {
-        AND: [{ tenantId: tenantId }, { name: identifier }],
+        tenantId,
+        OR: [{ id: identifier }, { name: identifier }],
       },
     });
   }

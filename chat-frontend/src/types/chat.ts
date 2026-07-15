@@ -5,6 +5,12 @@ export type User = {
   avatar?: string;
   status?: 'online' | 'offline' | 'away';
 };
+export type MessageAuthor = {
+  id: string;
+  name: string;
+  avatar?: string;
+  status?: 'online' | 'offline' | 'away';
+};
 
 export type Conversation = {
   id: string;
@@ -27,20 +33,17 @@ export type Message = {
   content: string;
   createdAt: string;
   authorId: string;
-  author?: User;
+  author?: MessageAuthor;
   conversationId: string;
 };
 
 export type SendMessagePayload = {
-  conversationId: string;
   room: string;
   content: string;
 };
 
 export type JoinRoomPayload = {
-  conversationId: string;
   room: string;
-  tenantId: string;
 };
 
 export type SocketAckResponse = {

@@ -23,6 +23,7 @@ type AuthResponse = {
 
 type BackendUser = {
   id: string;
+  tenantId: string;
   name: string;
   email?: string;
 };
@@ -34,6 +35,7 @@ function getAccessToken(data: AuthResponse) {
 function mapBackendUserToChatUser(user: BackendUser): User {
   return {
     id: user.id,
+    tenantId: user.tenantId,
     name: user.name,
     status: 'online',
   };
@@ -60,6 +62,7 @@ export async function login(data: LoginRequest) {
       Pragma: 'no-cache',
     },
   });
+  console.log('ME RESPONSE:', meResponse.data);
 
   const user = mapBackendUserToChatUser(meResponse.data);
 
