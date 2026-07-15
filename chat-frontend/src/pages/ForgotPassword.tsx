@@ -1,14 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { register } from '../services/authApi';
+import { forgotPassword } from '../services/authApi';
 import { getTenants, type Tenant } from '../services/tenantApi';
 
-export function Register() {
+export function ForgotPassword() {
   const navigate = useNavigate();
 
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [tenantSlug, setTenantSlug] = useState('');
   const [tenants, setTenants] = useState<Tenant[]>([]);
 
@@ -47,20 +45,20 @@ export function Register() {
     setIsLoading(true);
 
     try {
-      await register({
-        name,
-        email,
-        password,
+      await forgotPassword({
+        email: email.trim(),
         tenantSlug,
       });
-    
-      sessionStorage.setItem('verificationEmail', email.trim());
-      sessionStorage.setItem('verificationTenantSlug', tenantSlug);
-    
-      navigate('/verify-email');
+
+      sessionStorage.setItem('resetPasswordEmail', email.trim());
+      sessionStorage.setItem('resetPasswordTenantSlug', tenantSlug);
+
+      navigate('/verify-reset-password');
     } catch (error) {
       console.error(error);
-      setErrorMessage('Não foi possível criar sua conta.');
+      setErrorMessage(
+        'Não foi possível enviar o código. Verifique o e-mail e a empresa.',
+      );
     } finally {
       setIsLoading(false);
     }
@@ -92,14 +90,24 @@ export function Register() {
         }}
       >
         <div>
-          <h1 style={{ fontSize: '28px', marginBottom: '8px' }}>Cadastro</h1>
+          <h1 style={{ fontSize: '28px', marginBottom: '8px' }}>
+            Esqueci minha senha
+          </h1>
+
           <p style={{ color: '#9ca3af' }}>
-            Crie sua conta para acessar o chat real-time.
+            Informe seu e-mail para receber um código de recuperação.
           </p>
         </div>
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <label
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
+        >
           Empresa
+
           <select
             value={tenantSlug}
             onChange={(event) => setTenantSlug(event.target.value)}
@@ -124,26 +132,15 @@ export function Register() {
           </select>
         </label>
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          Nome
-          <input
-            type="text"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Seu nome"
-            required
-            style={{
-              padding: '12px',
-              borderRadius: '8px',
-              border: '1px solid #374151',
-              background: '#020617',
-              color: '#fff',
-            }}
-          />
-        </label>
+        <label
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
+        >
+          E-mail
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          Email
           <input
             type="email"
             value={email}
@@ -160,26 +157,13 @@ export function Register() {
           />
         </label>
 
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          Senha
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Mínimo de 6 caracteres"
-            required
-            style={{
-              padding: '12px',
-              borderRadius: '8px',
-              border: '1px solid #374151',
-              background: '#020617',
-              color: '#fff',
-            }}
-          />
-        </label>
-
         {errorMessage && (
-          <span style={{ color: '#f87171', fontSize: '14px' }}>
+          <span
+            style={{
+              color: '#f87171',
+              fontSize: '14px',
+            }}
+          >
             {errorMessage}
           </span>
         )}
@@ -194,16 +178,23 @@ export function Register() {
             background: '#2563eb',
             color: '#fff',
             fontWeight: 'bold',
-            cursor: 'pointer',
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            opacity: isLoading ? 0.7 : 1,
           }}
         >
-          {isLoading ? 'Criando conta...' : 'Criar conta'}
+          {isLoading ? 'Enviando código...' : 'Enviar código'}
         </button>
 
-        <p style={{ color: '#9ca3af', fontSize: '14px', textAlign: 'center' }}>
-          Já tem uma conta?{' '}
+        <p
+          style={{
+            color: '#9ca3af',
+            fontSize: '14px',
+            textAlign: 'center',
+          }}
+        >
+          Lembrou sua senha?{' '}
           <Link to="/login" style={{ color: '#60a5fa' }}>
-            Entrar
+            Voltar para o login
           </Link>
         </p>
       </form>

@@ -52,6 +52,10 @@ export class AuthService {
       }
       throw new UnauthorizedException('Credenciais inválidas');
     }
+    if (!user.emailVerified) {
+      throw new UnauthorizedException('Email não verificado');
+    }
+
     if (passwordMatch) {
       const token = this.jwt.sign({
         sub: user.id,
@@ -176,7 +180,7 @@ export class AuthService {
       user.email,
       name,
     );
-    console.log(newPassword);
+
     return { message: 'Senha redefinida com sucesso' };
   }
 }
