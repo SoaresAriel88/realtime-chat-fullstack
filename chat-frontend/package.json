@@ -10,9 +10,12 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "axios": "^1.18.1",
     "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "react-router": "^8.2.0",
+    "react-router-dom": "^7.18.1",
     "socket.io-client": "latest",
     "typescript": "latest",
     "vite": "latest"

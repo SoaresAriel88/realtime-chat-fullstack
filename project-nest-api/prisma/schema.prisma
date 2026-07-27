@@ -19,9 +19,12 @@ model Tenant {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  users      User[]
-  roles      Role[]
-  categories Category[]
+  users                    User[]
+  conversations            Conversation[]
+  conversationParticipants ConversationParticipant[]
+  messages                 Message[]
+  roles                    Role[]
+  categories               Category[]
 }
 
 model User {
@@ -38,26 +41,35 @@ model User {
   resetPasswordOtp          String?
   resetPasswordOtpExpiresAt DateTime?
 
-  conversations ConversationParticipant[]
-  messages      Message[]
-
   tenantId String
   tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  conversations ConversationParticipant[]
+  messages      Message[]
 
   roles Role[] @relation("UserRoles")
 
   @@unique([email, tenantId])
+  @@unique([id, tenantId])
+  @@index([tenantId])
 }
 
 model Conversation {
   id   String @id @default(uuid())
   name String
 
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
   participants ConversationParticipant[]
   messages     Message[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@unique([id, tenantId])
+  @@unique([tenantId, name])
+  @@index([tenantId])
 }
 
 model ConversationParticipant {
@@ -65,9 +77,13 @@ model ConversationParticipant {
 
   userId         String
   conversationId String
+  tenantId       String
 
-  user         User         @relation(fields: [userId], references: [id])
-  conversation Conversation @relation(fields: [conversationId], references: [id])
+  user User @relation(fields: [userId, tenantId],references: [id, tenantId])
+
+  conversation Conversation @relation(fields: [conversationId, tenantId],references: [id, tenantId])
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   joinedAt DateTime  @default(now())
   leftAt   DateTime?
@@ -76,6 +92,9 @@ model ConversationParticipant {
   updatedAt DateTime @updatedAt
 
   @@unique([userId, conversationId])
+  @@index([tenantId])
+  @@index([userId, tenantId])
+  @@index([conversationId, tenantId])
 }
 
 model Message {
@@ -84,12 +103,20 @@ model Message {
 
   conversationId String
   authorId       String
+  tenantId       String
 
-  conversation Conversation @relation(fields: [conversationId], references: [id])
-  author       User         @relation(fields: [authorId], references: [id])
+  conversation Conversation @relation(fields: [conversationId, tenantId],references: [id, tenantId])
+
+  author User @relation(fields: [authorId, tenantId], references: [id, tenantId])
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([conversationId, tenantId])
+  @@index([authorId, tenantId])
 }
 
 model Role {

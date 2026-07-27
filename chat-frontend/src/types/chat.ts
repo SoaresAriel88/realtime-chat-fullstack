@@ -1,5 +1,6 @@
 export type User = {
   id: string;
+  tenantId: string;
   name: string;
   avatar?: string;
   status?: 'online' | 'offline' | 'away';
@@ -7,6 +8,7 @@ export type User = {
 
 export type Conversation = {
   id: string;
+  tenantId: string;
   name: string;
   description?: string;
   updatedAt?: string;
@@ -21,6 +23,7 @@ export type Conversation = {
 
 export type Message = {
   id: string;
+  tenantId: string;
   content: string;
   createdAt: string;
   authorId: string;
@@ -31,13 +34,13 @@ export type Message = {
 export type SendMessagePayload = {
   conversationId: string;
   room: string;
-  authorId: string;
   content: string;
 };
 
 export type JoinRoomPayload = {
   conversationId: string;
   room: string;
+  tenantId: string;
 };
 
 export type SocketAckResponse = {
@@ -45,6 +48,7 @@ export type SocketAckResponse = {
   message: string;
   room?: {
     id: string;
+    tenantId: string;
     name: string;
   };
 };
