@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "chat-frontend-react-native",
+    "slug": "chat-frontend-react-native",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Este aplicativo precisa de acesso ao microfone para gravar mensagens de voz no chat."
+      }
+    },
+    "android": {
+      "permissions": [
+        "RECORD_AUDIO"
+      ]
+    }
+  }
+}

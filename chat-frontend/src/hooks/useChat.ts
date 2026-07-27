@@ -183,6 +183,20 @@ export function useChat() {
 
       setTypingUser(null);
     }
+    
+    function handleRoomCreated(room: Conversation) {
+      console.log('RECEBI chat:room_created:', room);
+  
+      setConversations((previousConversations) => {
+        const alreadyExists = previousConversations.some(
+          (item) => item.id === room.id,
+        );
+  
+        if (alreadyExists) return previousConversations;
+  
+        return [room, ...previousConversations];
+      });
+    }
 
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
@@ -190,6 +204,7 @@ export function useChat() {
     socket.on('chat:online_users', handleOnlineUsers);
     socket.on('chat:user_typing', handleTypingStart);
     socket.on('chat:user_stop_typing', handleTypingStop);
+    socket.on('chat:room_created', handleRoomCreated); 
 
     setIsConnected(socket.connected);
 
@@ -200,6 +215,7 @@ export function useChat() {
       socket.off('chat:online_users', handleOnlineUsers);
       socket.off('chat:user_typing', handleTypingStart);
       socket.off('chat:user_stop_typing', handleTypingStop);
+      socket.off('chat:room_created', handleRoomCreated);
 
       socket.disconnect();
     };

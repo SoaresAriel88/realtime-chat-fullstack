@@ -78,9 +78,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     const token = this.extractTokenFromSocket(client);
-
     if (!token) {
-      console.log('Socket sem token. Desconectando:', client.id);
       client.disconnect(true);
       return;
     }
@@ -91,19 +89,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       const user = await this.prisma.user.findUnique({
-        where: {
-          id: payload.sub,
-          tenantId: payload.tenantId,
-        },
-        select: {
-          id: true,
-          tenantId: true,
-          name: true,
-        },
+        where: { id: payload.sub, tenantId: payload.tenantId },
+        select: { id: true, tenantId: true, name: true },
       });
 
       if (!user) {
-        console.log('Usuário do token não encontrado. Socket:', client.id);
         client.disconnect(true);
         return;
       }
@@ -115,13 +105,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         tenantId: payload.tenantId,
       } satisfies AuthenticatedSocketUser;
 
+      // NOVO: entra na room global do tenant
+      await client.join(`tenant:${payload.tenantId}`);
+
       console.log(`Cliente conectado: ${client.id} - ${user.name}`);
     } catch (error) {
       console.log('Token inválido no socket:', error);
       client.disconnect(true);
     }
   }
-
   handleDisconnect(client: Socket) {
     this.removeSocketFromAllRooms(client);
 
@@ -162,13 +154,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       name: roomName,
       tenantId,
     });
-
     const roomId: string = room.id;
 
     await client.join(roomId);
 
     this.addOnlineUserToRoom(roomId, client);
     this.emitOnlineUsers(roomId);
+
+    this.server.to(`tenant:${tenantId}`).emit('chat:room_created', {
+      id: room.id,
+      name: room.name,
+      tenantId: room.tenantId,
+    });
 
     console.log(`Acesso a tenant com sucesso: ${tenantId}`);
     console.log(`Sala criada com sucesso: ${room.name}`);
@@ -725,5 +722,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     };
 
     this.server.to(roomId).emit('chat:new_message', payload);
+  }
+  emitRoomCreatedToTenant(
+    tenantId: string,
+    room: { id: string; name: string; tenantId: string },
+  ) {
+    this.server.to(`tenant:${tenantId}`).emit('chat:room_created', room);
   }
 }
