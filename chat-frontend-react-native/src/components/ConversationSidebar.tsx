@@ -7,8 +7,8 @@ import {
   View, 
   FlatList 
 } from 'react-native';
-// AJUSTE 1: Importação de ícones nativa e estável para celular
-import { MessageCircle, Plus, Search } from 'lucide-react-native';
+
+import { LogOut, MessageCircle, Plus, Search } from 'lucide-react-native';
 import { router } from 'expo-router';
 import type { Conversation } from '../types/chat';
 import { Avatar } from './Avatar';
@@ -20,6 +20,7 @@ type ConversationSidebarProps = {
   isUsingMockData: boolean;
   onSelectConversation: (conversation: Conversation) => void;
   onCreateConversation: (name: string) => void;
+  onLogout: () => void;
 };
 
 export function ConversationSidebar({
@@ -29,6 +30,7 @@ export function ConversationSidebar({
   isUsingMockData,
   onSelectConversation,
   onCreateConversation,
+  onLogout,
 }: ConversationSidebarProps) {
   const [search, setSearch] = useState('');
   const [newConversationName, setNewConversationName] = useState('');
@@ -45,7 +47,6 @@ export function ConversationSidebar({
 
   return (
     <View style={styles.sidebar}>
-      {/* Cabeçalho */}
       <View style={styles.sidebarHeader}>
         <View>
           <Text style={styles.eyebrow}>Realtime</Text>
@@ -54,9 +55,16 @@ export function ConversationSidebar({
         <View style={[styles.connectionPill, isConnected ? styles.connected : styles.disconnected]}>
           <Text style={styles.connectionText}>{isConnected ? 'Online' : 'Offline'}</Text>
         </View>
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={onLogout}
+          accessibilityLabel="Sair"
+        >
+          <LogOut size={18} color="#f87171" />
+        </TouchableOpacity>
       </View>
 
-      {/* Alerta de Mock */}
+
       {isUsingMockData ? (
         <View style={styles.mockAlert}>
           <Text style={styles.mockAlertText}>
@@ -65,7 +73,6 @@ export function ConversationSidebar({
         </View>
       ) : null}
 
-      {/* Campo de Busca */}
       <View style={styles.searchBox}>
         <Search size={16} color="#9ca3af" />
         <TextInput
@@ -77,7 +84,6 @@ export function ConversationSidebar({
         />
       </View>
 
-      {/* Criar Conversa */}
       <View style={styles.createConversation}>
         <TextInput
           style={styles.createInput}
@@ -85,7 +91,7 @@ export function ConversationSidebar({
           onChangeText={setNewConversationName}
           placeholder="Nova conversa"
           placeholderTextColor="#9ca3af"
-          onSubmitEditing={handleCreateConversation} // Aciona ao clicar "Enter/Concluir" no teclado
+          onSubmitEditing={handleCreateConversation} 
           returnKeyType="done"
         />
         <TouchableOpacity 
@@ -97,7 +103,6 @@ export function ConversationSidebar({
         </TouchableOpacity>
       </View>
 
-      {/* Lista Eficiente de Conversas (Substitui o .map da Web por FlatList) */}
       <FlatList
         data={filteredConversations}
         keyExtractor={(item) => item.id}
@@ -314,5 +319,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  logoutButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
   },
 });

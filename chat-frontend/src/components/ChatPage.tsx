@@ -21,6 +21,7 @@ export function ChatPage() {
     createNewConversation,
     startTyping,
     stopTyping,
+    logout,
   } = useChat();
 
   return (
@@ -32,6 +33,7 @@ export function ChatPage() {
         isUsingMockData={isUsingMockData}
         onSelectConversation={selectConversation}
         onCreateConversation={createNewConversation}
+        onLogout={logout}
       />
 
       <section className="chat-panel">

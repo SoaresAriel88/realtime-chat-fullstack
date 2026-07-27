@@ -1,4 +1,4 @@
-import { MessageCircle, Plus, Search } from 'lucide-react';
+import { LogOut, MessageCircle, Plus, Search } from 'lucide-react';
 import { useState } from 'react';
 import type { Conversation } from '../types/chat';
 import { Avatar } from './Avatar';
@@ -10,6 +10,7 @@ type ConversationSidebarProps = {
   isUsingMockData: boolean;
   onSelectConversation: (conversation: Conversation) => void;
   onCreateConversation: (name: string) => void;
+  onLogout: () => void;
 };
 
 export function ConversationSidebar({
@@ -19,6 +20,7 @@ export function ConversationSidebar({
   isUsingMockData,
   onSelectConversation,
   onCreateConversation,
+  onLogout,
 }: ConversationSidebarProps) {
   const [search, setSearch] = useState('');
   const [newConversationName, setNewConversationName] = useState('');
@@ -42,7 +44,17 @@ export function ConversationSidebar({
         <div className={`connection-pill ${isConnected ? 'connected' : 'disconnected'}`}>
           {isConnected ? 'Online' : 'Offline'}
         </div>
+        <button
+          type="button"
+          className="logout-button"
+          onClick={onLogout}
+          aria-label="Sair"
+          title="Sair"
+        >
+      <LogOut size={16} />
+    </button>
       </div>
+
 
       {isUsingMockData && (
         <div className="mock-alert">Prévia visual ativa. Ligue o backend para usar dados reais.</div>

@@ -9,17 +9,15 @@ import {
   Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// Ícone de menu hambúrguer para abrir a barra lateral no celular
 import { Menu } from 'lucide-react-native'; 
 import { useChat } from '../hooks/useChat';
 
-// Importações dos seus componentes locais
 import { ChatHeader } from './ChatHeader';
 import { MessageInput } from './MessageInput';
 import { MessageList } from './MessageList';
 import { ConversationSidebar } from './ConversationSidebar';
+import { logout } from '../services/authApi';
 
-// Pega a largura exata da tela do celular para dimensionar o menu lateral de forma responsiva
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ChatPage() {
@@ -40,14 +38,12 @@ export default function ChatPage() {
     stopTyping,
   } = useChat();
 
-  // Estado simples para abrir/fechar a barra lateral de chats no celular
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <View style={styles.container}>
         
-        {/* BARRA SUPERIOR CUSTOMIZADA: Substitui a barra do Drawer */}
         <View style={styles.topNavbar}>
           <TouchableOpacity 
             style={styles.menuButton} 
@@ -60,10 +56,8 @@ export default function ChatPage() {
           </Text>
         </View>
 
-        {/* CONTAINER DO FLUXO DO CHAT */}
         <View style={styles.chatArea}>
           
-          {/* Painel Central de Mensagens */}
           <KeyboardAvoidingView 
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.flexContainer}
@@ -82,7 +76,6 @@ export default function ChatPage() {
             </View>
           </KeyboardAvoidingView>
 
-          {/* MENU LATERAL CUSTOMIZADO (SIDEBAR): Renderiza flutuando sobre a tela se estiver ativo */}
           {isSidebarOpen ? (
             <View style={styles.sidebarOverlay}>
               <View style={styles.sidebarContent}>
@@ -93,9 +86,10 @@ export default function ChatPage() {
                   isUsingMockData={isUsingMockData}
                   onSelectConversation={(chat) => {
                     selectConversation(chat);
-                    setIsSidebarOpen(false); // Fecha a barra lateral automaticamente
+                    setIsSidebarOpen(false);
                   }}
                   onCreateConversation={createNewConversation}
+                  onLogout={logout}
                 />
               </View>
               

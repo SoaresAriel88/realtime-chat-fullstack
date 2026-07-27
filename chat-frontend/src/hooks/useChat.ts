@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getCurrentUser } from '../lib/currentUser';
+import { getCurrentUser, clearCurrentUser } from '../lib/currentUser';
 import {
   createConversation,
   getConversationMessages,
@@ -466,6 +466,20 @@ export function useChat() {
       room: activeConversation.id,
     });
   }, [activeConversation, currentUser, joinedRoomId]);
+  const logout = useCallback(() => {
+    socket.disconnect();
+  
+    clearCurrentUser();
+  
+    setConversations([]);
+    setActiveConversation(null);
+    setMessages([]);
+    setOnlineUsers([]);
+    setIsConnected(false);
+    setJoinedRoomId(null);
+  
+    window.location.href = '/login';
+  }, []);
 
   return {
     conversations,
@@ -483,5 +497,6 @@ export function useChat() {
     startTyping,
     stopTyping,
     sendAttachment,
+    logout,
   };
 }

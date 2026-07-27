@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getCurrentUser } from '../lib/currentUser';
+import { getCurrentUser, clearCurrentUser } from '../lib/currentUser';
+import { router } from 'expo-router';
 import {
   getConversationMessages,
   getConversations,
@@ -313,6 +314,21 @@ export function useChat() {
       console.error("Erro ao criar conversa:", error);
     }
   }, []);
+  const logout = useCallback(async () => {
+    socket.disconnect();
+  
+    await clearCurrentUser();
+  
+    setCurrentUser(null);
+    setConversations([]);
+    setActiveConversation(null);
+    setMessages([]);
+    setOnlineUsers([]);
+    setIsConnected(false);
+    setJoinedRoomId(null);
+  
+    router.replace('/login');
+  }, []);
 
   return {
     conversations,
@@ -333,5 +349,6 @@ export function useChat() {
     createNewConversation,
     startTyping,
     stopTyping,
+    logout,
   };
 }
