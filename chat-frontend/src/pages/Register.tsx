@@ -53,8 +53,11 @@ export function Register() {
         password,
         tenantSlug,
       });
-
-      navigate('/login');
+    
+      sessionStorage.setItem('verificationEmail', email.trim());
+      sessionStorage.setItem('verificationTenantSlug', tenantSlug);
+    
+      navigate('/verify-email');
     } catch (error) {
       console.error(error);
       setErrorMessage('Não foi possível criar sua conta.');

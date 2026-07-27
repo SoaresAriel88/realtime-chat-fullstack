@@ -633,3 +633,79 @@ button {
     min-height: 680px;
   }
 }
+.message-image {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.message-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 220px;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  text-decoration: none;
+}
+
+.message-file:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.message-file div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.message-file strong {
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-file small {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.message-audio {
+  display: block;
+  width: 280px;
+  max-width: 100%;
+}
+
+.message-bubble img,
+.message-bubble audio {
+  margin-top: 6px;
+  margin-bottom: 4px;
+}
+.recording-button {
+  color: #f87171;
+  animation: recording-pulse 1s infinite;
+}
+
+.recording-error {
+  color: #f87171;
+  font-size: 12px;
+}
+
+@keyframes recording-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+} 

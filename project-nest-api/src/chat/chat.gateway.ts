@@ -78,9 +78,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     const token = this.extractTokenFromSocket(client);
-
     if (!token) {
-      console.log('Socket sem token. Desconectando:', client.id);
       client.disconnect(true);
       return;
     }
@@ -91,19 +89,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
 
       const user = await this.prisma.user.findUnique({
-        where: {
-          id: payload.sub,
-          tenantId: payload.tenantId,
-        },
-        select: {
-          id: true,
-          tenantId: true,
-          name: true,
-        },
+        where: { id: payload.sub, tenantId: payload.tenantId },
+        select: { id: true, tenantId: true, name: true },
       });
 
       if (!user) {
-        console.log('Usuário do token não encontrado. Socket:', client.id);
         client.disconnect(true);
         return;
       }
@@ -115,13 +105,15 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         tenantId: payload.tenantId,
       } satisfies AuthenticatedSocketUser;
 
+      // NOVO: entra na room global do tenant
+      await client.join(`tenant:${payload.tenantId}`);
+
       console.log(`Cliente conectado: ${client.id} - ${user.name}`);
     } catch (error) {
       console.log('Token inválido no socket:', error);
       client.disconnect(true);
     }
   }
-
   handleDisconnect(client: Socket) {
     this.removeSocketFromAllRooms(client);
 
@@ -162,13 +154,18 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       name: roomName,
       tenantId,
     });
-
     const roomId: string = room.id;
 
     await client.join(roomId);
 
     this.addOnlineUserToRoom(roomId, client);
     this.emitOnlineUsers(roomId);
+
+    this.server.to(`tenant:${tenantId}`).emit('chat:room_created', {
+      id: room.id,
+      name: room.name,
+      tenantId: room.tenantId,
+    });
 
     console.log(`Acesso a tenant com sucesso: ${tenantId}`);
     console.log(`Sala criada com sucesso: ${room.name}`);
@@ -205,6 +202,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'Tenant não encontrado',
       };
     }
+    console.log('JOIN BACKEND DEBUG:', {
+      data,
+      room: data.room,
+      name: data.name,
+      tenantId,
+      currentUser,
+    });
 
     const roomIdentifier = data.room?.trim() || data.name?.trim();
 
@@ -228,6 +232,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     await client.join(room.id);
+    const socketsInRoom = await this.server.in(room.id).fetchSockets();
+
+    console.log('SOCKETS NA ROOM DEPOIS DO JOIN:', {
+      roomId: room.id,
+      total: socketsInRoom.length,
+      users: socketsInRoom.map((socket) => socket.data.user),
+    });
 
     this.addOnlineUserToRoom(room.id, client);
     this.emitOnlineUsers(room.id);
@@ -235,6 +246,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     console.log(`Acesso a tenant com sucesso: ${tenantId}`);
     console.log(`Cliente ${client.id} entrou na sala ${room.name}`);
     console.log(`Room ID usada no socket: ${room.id}`);
+    console.log('JOIN ROOM DEBUG:', {
+      roomIdentifier,
+      tenantId,
+      user: currentUser,
+    });
 
     return {
       success: true,
@@ -286,8 +302,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
         message: 'Sala não encontrada',
       };
     }
+    console.log('LEAVE ROOM DEBUG:', {
+      roomRecebida: data.room,
+      tenantId,
+      currentUser,
+    });
 
     await client.leave(room.id);
+
+    const socketsInRoom = await this.server.in(room.id).fetchSockets();
+
+    console.log('SOCKETS NA ROOM DEPOIS DO LEAVE:', {
+      roomId: room.id,
+      total: socketsInRoom.length,
+      users: socketsInRoom.map((socket) => socket.data.user),
+    });
 
     this.removeOnlineUserFromRoom(room.id, client);
     this.emitOnlineUsers(room.id);
@@ -354,8 +383,22 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       const roomId: string = savedMessage.conversationId;
 
+      if (!client.rooms.has(roomId)) {
+        console.warn(
+          'Socket não estava na room no send_message. Entrando agora:',
+          {
+            socketId: client.id,
+            roomId,
+            roomsAtuais: Array.from(client.rooms),
+          },
+        );
+
+        await client.join(roomId);
+      }
+
       const payload = {
         id: savedMessage.id,
+        tenantId: savedMessage.tenantId,
         room: roomId,
         conversationId: roomId,
         authorId: savedMessage.authorId,
@@ -370,6 +413,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       console.log('Mensagem salva no banco:', savedMessage.id);
       console.log('Emitindo para room:', roomId);
+
+      const socketsInRoom = await this.server.in(roomId).fetchSockets();
+
+      console.log('SOCKETS NA ROOM ANTES DO EMIT:', {
+        roomId,
+        total: socketsInRoom.length,
+        users: socketsInRoom.map((socket) => socket.data.user),
+      });
 
       this.server.to(roomId).emit('chat:new_message', payload);
 
@@ -522,7 +573,6 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = this.getAuthenticatedUser(client);
 
     if (!user) return;
-
     let usersInRoom = this.onlineUsersByRoom.get(roomId);
 
     if (!usersInRoom) {
@@ -606,6 +656,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   private emitOnlineUsers(roomId: string) {
+    console.log('ENTROU NO EMIT ONLINE USERS:', roomId);
+
     const usersInRoom = this.onlineUsersByRoom.get(roomId);
 
     const users: OnlineUser[] = usersInRoom
@@ -621,5 +673,60 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       room: roomId,
       users,
     });
+  }
+  emitNewMessage(
+    roomId: string,
+    message: {
+      id: string;
+      tenantId: string;
+      conversationId: string;
+      authorId: string;
+      author: {
+        id: string;
+        name: string;
+      };
+      type: string;
+      content: string | null;
+      fileUrl: string | null;
+      fileName: string | null;
+      mimeType: string | null;
+      fileSize: number | null;
+      audioDuration: number | null;
+      createdAt: Date;
+    },
+  ) {
+    const payload = {
+      id: message.id,
+      tenantId: message.tenantId,
+
+      room: roomId,
+      conversationId: message.conversationId,
+
+      authorId: message.authorId,
+      author: {
+        id: message.author.id,
+        name: message.author.name,
+        status: 'online',
+      },
+
+      type: message.type,
+      content: message.content,
+
+      fileUrl: message.fileUrl,
+      fileName: message.fileName,
+      mimeType: message.mimeType,
+      fileSize: message.fileSize,
+      audioDuration: message.audioDuration,
+
+      createdAt: message.createdAt,
+    };
+
+    this.server.to(roomId).emit('chat:new_message', payload);
+  }
+  emitRoomCreatedToTenant(
+    tenantId: string,
+    room: { id: string; name: string; tenantId: string },
+  ) {
+    this.server.to(`tenant:${tenantId}`).emit('chat:room_created', room);
   }
 }

@@ -5,6 +5,12 @@ export type User = {
   avatar?: string;
   status?: 'online' | 'offline' | 'away';
 };
+export type MessageAuthor = {
+  id: string;
+  name: string;
+  avatar?: string;
+  status?: 'online' | 'offline' | 'away';
+};
 
 export type Conversation = {
   id: string;
@@ -21,26 +27,39 @@ export type Conversation = {
   };
 };
 
+export type MessageType = 'TEXT' | 'IMAGE' | 'FILE' | 'AUDIO';
+
 export type Message = {
   id: string;
   tenantId: string;
-  content: string;
-  createdAt: string;
-  authorId: string;
-  author?: User;
   conversationId: string;
+  authorId: string;
+
+  type: MessageType;
+  content: string | null;
+
+  fileUrl: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  audioDuration: number | null;
+
+  createdAt: string;
+
+  author?: {
+    id: string;
+    name: string;
+    status?: 'online' | 'offline';
+  };
 };
 
 export type SendMessagePayload = {
-  conversationId: string;
   room: string;
   content: string;
 };
 
 export type JoinRoomPayload = {
-  conversationId: string;
   room: string;
-  tenantId: string;
 };
 
 export type SocketAckResponse = {
